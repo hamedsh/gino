@@ -3,6 +3,8 @@ import itertools
 import time
 import warnings
 
+from pip._internal.utils import packaging
+
 import asyncpg
 from sqlalchemy import util, exc, sql
 from sqlalchemy.dialects.postgresql import (  # noqa: F401
@@ -176,6 +178,8 @@ class DBAPICursor(base.DBAPICursor):
 
         def executor(state, timeout_):
             if many:
+                if packaging.version.parse(asyncpg.__version__) >= packaging.version.parse('0.30.0'):
+                    return _protocol.bind_execute_many(state, args, "", timeout_, return_rows=True)
                 return _protocol.bind_execute_many(state, args, "", timeout_)
             else:
                 return _protocol.bind_execute(state, args, "", limit, True, timeout_)
