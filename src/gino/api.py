@@ -1,6 +1,7 @@
 import weakref
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine.url import make_url, URL
 from sqlalchemy.sql.base import Executable
 from sqlalchemy.sql.schema import SchemaItem
@@ -10,6 +11,14 @@ from .declarative import declarative_base, declared_attr
 from .exceptions import UninitializedError
 from .schema import GinoSchemaVisitor, patch_schema
 from . import json_support
+
+
+_DEBUG = False
+
+
+def enable_debug(val=True):
+    global _DEBUG
+    _DEBUG = val
 
 
 class GinoExecutor:
@@ -116,6 +125,29 @@ class GinoExecutor:
         self._query = self._query.execution_options(loader=value)
         return self
 
+    def _log_query_if_requested(func):
+        async def wrapper(self, *multiparams, **params):
+            if _DEBUG:
+                compiled = self._query.compile(
+                    dialect=postgresql.dialect(),
+                    compile_kwargs={"literal_binds": False},
+                )
+                driver_sql = compiled.string
+                bind_params = compiled.params
+                print(
+                    'gino_log: host: %s, func: %s, query: %s, params: %r'
+                    % (
+                        self._query.bind.raw_pool._connect_kwargs['host'],
+                        func.__name__,
+                        driver_sql.replace('\n', ' '),
+                        bind_params,
+                    )
+                )
+            return await func(self, *multiparams, **params)
+
+        return wrapper
+
+    @_log_query_if_requested
     async def all(self, *multiparams, **params):
         """
         Returns :meth:`engine.all() <.engine.GinoEngine.all>` with this query
@@ -126,6 +158,7 @@ class GinoExecutor:
         """
         return await self._query.bind.all(self._query, *multiparams, **params)
 
+    @_log_query_if_requested
     async def first(self, *multiparams, **params):
         """
         Returns :meth:`engine.first() <.engine.GinoEngine.first>` with this
@@ -136,6 +169,7 @@ class GinoExecutor:
         """
         return await self._query.bind.first(self._query, *multiparams, **params)
 
+    @_log_query_if_requested
     async def one_or_none(self, *multiparams, **params):
         """
         Returns :meth:`engine.one_or_none() <.engine.GinoEngine.one_or_none>`
@@ -147,6 +181,7 @@ class GinoExecutor:
         """
         return await self._query.bind.one_or_none(self._query, *multiparams, **params)
 
+    @_log_query_if_requested
     async def one(self, *multiparams, **params):
         """
         Returns :meth:`engine.one() <.engine.GinoEngine.one>` with this query
@@ -157,6 +192,7 @@ class GinoExecutor:
         """
         return await self._query.bind.one(self._query, *multiparams, **params)
 
+    @_log_query_if_requested
     async def scalar(self, *multiparams, **params):
         """
         Returns :meth:`engine.scalar() <.engine.GinoEngine.scalar>` with this
@@ -167,6 +203,7 @@ class GinoExecutor:
         """
         return await self._query.bind.scalar(self._query, *multiparams, **params)
 
+    @_log_query_if_requested
     async def status(self, *multiparams, **params):
         """
         Returns :meth:`engine.status() <.engine.GinoEngine.status>` with this
@@ -418,6 +455,28 @@ class Gino(sa.MetaData):
         self.bind = bind
         return bind
 
+    def _log_query_if_requested(func):
+        async def wrapper(self, clause, *multiparams, **params):
+            if _DEBUG:
+                compiled = clause.compile(
+                    dialect=postgresql.dialect(),
+                    compile_kwargs={"literal_binds": False},
+                )
+                sql = str(compiled)  # contains $1, $2, ...
+                bind_params = compiled.params  # dict of values for $1, $2, ...
+                print(
+                    'gino_log: host: %s, func: %s, query: %s, params: %s'
+                    % (
+                        self.bind.raw_pool._connect_kwargs['host'],
+                        func.__name__,
+                        sql.replace('\n', ' '),
+                        bind_params,
+                    )
+                )
+            return await func(self, clause, *multiparams, **params)
+
+        return wrapper
+
     def pop_bind(self):
         """
         Unbind self, and return the bound engine.
@@ -464,6 +523,7 @@ class Gino(sa.MetaData):
         """
         return self.bind.compile(elem, *multiparams, **params)
 
+    @_log_query_if_requested
     async def all(self, clause, *multiparams, **params):
         """
         A delegate of :meth:`GinoEngine.all() <.engine.GinoEngine.all>`.
@@ -471,6 +531,7 @@ class Gino(sa.MetaData):
         """
         return await self.bind.all(clause, *multiparams, **params)
 
+    @_log_query_if_requested
     async def first(self, clause, *multiparams, **params):
         """
         A delegate of :meth:`GinoEngine.first() <.engine.GinoEngine.first>`.
@@ -478,6 +539,7 @@ class Gino(sa.MetaData):
         """
         return await self.bind.first(clause, *multiparams, **params)
 
+    @_log_query_if_requested
     async def one_or_none(self, clause, *multiparams, **params):
         """
         A delegate of :meth:`GinoEngine.one_or_none()
@@ -486,6 +548,7 @@ class Gino(sa.MetaData):
         """
         return await self.bind.one_or_none(clause, *multiparams, **params)
 
+    @_log_query_if_requested
     async def one(self, clause, *multiparams, **params):
         """
         A delegate of :meth:`GinoEngine.one() <.engine.GinoEngine.first>`.
@@ -493,6 +556,7 @@ class Gino(sa.MetaData):
         """
         return await self.bind.one(clause, *multiparams, **params)
 
+    @_log_query_if_requested
     async def scalar(self, clause, *multiparams, **params):
         """
         A delegate of :meth:`GinoEngine.scalar() <.engine.GinoEngine.scalar>`.
@@ -500,6 +564,7 @@ class Gino(sa.MetaData):
         """
         return await self.bind.scalar(clause, *multiparams, **params)
 
+    @_log_query_if_requested
     async def status(self, clause, *multiparams, **params):
         """
         A delegate of :meth:`GinoEngine.status() <.engine.GinoEngine.status>`.

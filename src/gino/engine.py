@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import functools
+import logging
 import sys
 import time
 from contextvars import ContextVar
@@ -13,6 +14,16 @@ from .exceptions import MultipleResultsFound, NoResultFound
 from .transaction import GinoTransaction
 
 patch_asyncio()
+
+
+logger = logging.getLogger('gino')
+
+
+def enable_debug(val=True):
+    if val:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
 
 class _BaseDBAPIConnection:

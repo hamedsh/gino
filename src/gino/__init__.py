@@ -1,5 +1,5 @@
-from .api import Gino  # NOQA
-from .engine import GinoEngine, GinoConnection  # NOQA
+from .api import Gino, enable_debug  # NOQA
+from .engine import GinoEngine, GinoConnection, enable_debug  # NOQA
 from .exceptions import *  # NOQA
 from .strategies import GinoStrategy  # NOQA
 
